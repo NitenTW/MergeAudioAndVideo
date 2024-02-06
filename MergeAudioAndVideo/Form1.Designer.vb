@@ -29,9 +29,9 @@ Partial Class Form1
         Me.TextBox2 = New System.Windows.Forms.TextBox()
         Me.Button3 = New System.Windows.Forms.Button()
         Me.Button4 = New System.Windows.Forms.Button()
-        Me.BackgroundWorker1 = New System.ComponentModel.BackgroundWorker()
         Me.CheckBox1 = New System.Windows.Forms.CheckBox()
         Me.TextBox3 = New System.Windows.Forms.TextBox()
+        Me.ProgressBar1 = New System.Windows.Forms.ProgressBar()
         Me.SuspendLayout()
         '
         'Button1
@@ -85,11 +85,6 @@ Partial Class Form1
         Me.Button4.Text = "取消(&C)"
         Me.Button4.UseVisualStyleBackColor = True
         '
-        'BackgroundWorker1
-        '
-        Me.BackgroundWorker1.WorkerReportsProgress = True
-        Me.BackgroundWorker1.WorkerSupportsCancellation = True
-        '
         'CheckBox1
         '
         Me.CheckBox1.Checked = True
@@ -106,17 +101,26 @@ Partial Class Form1
         '
         Me.TextBox3.Dock = System.Windows.Forms.DockStyle.Bottom
         Me.TextBox3.Enabled = False
-        Me.TextBox3.Location = New System.Drawing.Point(0, 159)
+        Me.TextBox3.Location = New System.Drawing.Point(0, 165)
         Me.TextBox3.Multiline = True
         Me.TextBox3.Name = "TextBox3"
-        Me.TextBox3.Size = New System.Drawing.Size(520, 150)
+        Me.TextBox3.Size = New System.Drawing.Size(520, 67)
         Me.TextBox3.TabIndex = 8
+        '
+        'ProgressBar1
+        '
+        Me.ProgressBar1.Location = New System.Drawing.Point(8, 144)
+        Me.ProgressBar1.Maximum = 0
+        Me.ProgressBar1.Name = "ProgressBar1"
+        Me.ProgressBar1.Size = New System.Drawing.Size(505, 15)
+        Me.ProgressBar1.TabIndex = 9
         '
         'Form1
         '
         Me.AutoScaleDimensions = New System.Drawing.SizeF(6.0!, 12.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
-        Me.ClientSize = New System.Drawing.Size(520, 309)
+        Me.ClientSize = New System.Drawing.Size(520, 232)
+        Me.Controls.Add(Me.ProgressBar1)
         Me.Controls.Add(Me.TextBox3)
         Me.Controls.Add(Me.CheckBox1)
         Me.Controls.Add(Me.Button4)
@@ -141,7 +145,7 @@ Partial Class Form1
     Friend WithEvents TextBox2 As TextBox
     Friend WithEvents Button3 As Button
     Friend WithEvents Button4 As Button
-    Friend WithEvents BackgroundWorker1 As System.ComponentModel.BackgroundWorker
     Friend WithEvents CheckBox1 As CheckBox
     Friend WithEvents TextBox3 As TextBox
+    Friend WithEvents ProgressBar1 As ProgressBar
 End Class

@@ -1,9 +1,8 @@
 ﻿Imports System.ComponentModel
-Imports System.IO
 
 Public Class Form1
 
-    Private Delegate Sub UpdataText(ByVal text As String)
+    Private Delegate Sub UpdateText(ByVal text As String)
 
     Private Enum State
         None = 0
@@ -24,12 +23,12 @@ Public Class Form1
 
     '選擇聲音
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
-        TextBox1.Text = GetFilePath("選擇聲音檔案", "聲音檔案|*.mp4")
+        TextBox1.Text = GetFilePath("選擇聲音檔案", "聲音檔案|*.mp4|全部檔案|*.*")
     End Sub
 
     '選擇影像
     Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
-        TextBox2.Text = GetFilePath("選擇影像檔案", "影像檔案|*.mp4")
+        TextBox2.Text = GetFilePath("選擇影像檔案", "影像檔案|*.mp4|全部檔案|*.*")
     End Sub
 
     ''' <summary>
@@ -54,12 +53,21 @@ Public Class Form1
 
     '轉換
     Private Sub Button3_Click(sender As Object, e As EventArgs) Handles Button3.Click
-        GetTempPath()
         If IsReady() Then
+            GetTempPath()
             Button3.Enabled = False
             Button4.Enabled = True
             nowState = State.None
-            BackgroundWorker1.RunWorkerAsync()
+
+            Dim fCount As Integer = GetFrameCount()
+            If Not fCount = -1 Then
+                ProgressBar1.Maximum = fCount
+            Else
+                ProgressBar1.Maximum = 0
+            End If
+
+            GetFrameCount()
+            Merge()
         End If
     End Sub
 
@@ -81,6 +89,21 @@ Public Class Form1
             Return False
         End If
 
+        If Not My.Computer.FileSystem.FileExists(Application.StartupPath & "\ffprobe.exe") Then
+            MsgBox("FFPROBE.exe 不存在")
+            Return False
+        End If
+
+        If TextBox1.Text = String.Empty Then
+            MsgBox("尚未選擇聲音檔案")
+            Return False
+        End If
+
+        If TextBox2.Text = String.Empty Then
+            MsgBox("尚未選擇影像檔案")
+            Return False
+        End If
+
         If Not My.Computer.FileSystem.FileExists(TextBox1.Text) Then
             MsgBox("聲音檔不存在")
             Return False
@@ -99,15 +122,50 @@ Public Class Form1
         Return True
     End Function
 
+    Private Function GetFrameCount() As Integer
+        Using ffprobe As New Process
+            Dim procInfo As New ProcessStartInfo
+
+            procInfo.FileName = Application.StartupPath & "\ffprobe.exe"
+            procInfo.Arguments = "-v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1 " & TextBox2.Text
+            procInfo.UseShellExecute = False
+            procInfo.WindowStyle = ProcessWindowStyle.Hidden
+            procInfo.RedirectStandardOutput = True
+            procInfo.CreateNoWindow = True
+
+            ffprobe.StartInfo = procInfo
+            ffprobe.Start()
+
+            Dim result As Integer = -1
+            Dim outLine As String
+            Using ffReader As System.IO.StreamReader = ffprobe.StandardOutput
+                Do
+                    result = GetFrameValue(ffReader.ReadLine)
+                    outLine = ffReader.ReadLine
+                Loop Until ffprobe.HasExited
+            End Using
+
+            ffprobe.Close()
+            Return result
+        End Using
+    End Function
+
+    Private Function GetFrameValue(ByVal outLine As String) As Integer
+        Dim result As Integer = -1
+
+        Dim temp As String = (Strings.Mid(outLine, 11))
+        If IsNumeric(temp) Then
+            result = Convert.ToInt32(temp)
+        End If
+
+        Return result
+    End Function
+
     Private Sub Button4_Click(sender As Object, e As EventArgs) Handles Button4.Click
         nowState = State.Cancel
-        If BackgroundWorker1.IsBusy Then BackgroundWorker1.CancelAsync()
         Button3.Enabled = True
         Button4.Enabled = False
-    End Sub
-
-    Private Sub BackgroundWorker1_DoWork(sender As Object, e As System.ComponentModel.DoWorkEventArgs) Handles BackgroundWorker1.DoWork
-        Merge()
+        ProgressBar1.Value = 0
     End Sub
 
     ''' <summary>
@@ -125,45 +183,77 @@ Public Class Form1
             procInfo.CreateNoWindow = True
 
             ffmpeg.StartInfo = procInfo
+            AddHandler ffmpeg.ErrorDataReceived, AddressOf ffmpeg_ErrorDataReceived
+            AddHandler ffmpeg.Exited, AddressOf ffmpeg_Exited
             ffmpeg.Start()
 
-            Dim output As String
+            ffmpeg.BeginErrorReadLine()
+            Do
+                If nowState = State.Cancel Then
+                    ffmpeg.Kill()
+                    'Debug.WriteLine("使用者關閉")
+                    Exit Do
+                End If
 
-            Using ffReader As StreamReader = ffmpeg.StandardError
-                Do
-                    If BackgroundWorker1.CancellationPending Then
-                        ffmpeg.Kill()
-                        Exit Do
-                    End If
+                My.Application.DoEvents()
+            Loop Until ffmpeg.HasExited
 
-                    output = ffReader.ReadLine
-                    Debug.WriteLine(" >>> " & output)
-                    If Not output Is Nothing Then
-                        Me.Invoke(New UpdataText(AddressOf UpdataUI), output)
-                    End If
 
-                Loop Until ffmpeg.HasExited And output = Nothing Or output = ""
-            End Using
+            If nowState = State.Cancel Then
+                MsgBox("合併取消")
+                If CheckBox1.Checked AndAlso My.Computer.FileSystem.FileExists(tmpPath.finishFileName) Then
+                    My.Computer.FileSystem.DeleteFile(tmpPath.finishFileName)
+                End If
+            End If
+
+            RemoveHandler ffmpeg.ErrorDataReceived, AddressOf ffmpeg_ErrorDataReceived
+            RemoveHandler ffmpeg.Exited, AddressOf ffmpeg_Exited
+            ffmpeg.Close()
         End Using
     End Sub
 
-    Private Sub UpdataUI(ByVal text As String)
-        TextBox3.AppendText(text & vbNewLine)
+    Private Sub ffmpeg_ErrorDataReceived(sender As Object, e As DataReceivedEventArgs)
+        If Not String.IsNullOrEmpty(e.Data) Then
+            UpdateUI(e.Data)
+        End If
     End Sub
 
-    Private Sub BackgroundWorker1_RunWorkerCompleted(sender As Object, e As RunWorkerCompletedEventArgs) Handles BackgroundWorker1.RunWorkerCompleted
-        If nowState = State.Cancel Then
-            MsgBox("合併取消")
-            If CheckBox1.Checked AndAlso My.Computer.FileSystem.FileExists(tmpPath.finishFileName) Then
-                My.Computer.FileSystem.DeleteFile(tmpPath.finishFileName)
-            End If
+    Private Sub UpdateUI(ByVal outLine As String)
+        If Me.InvokeRequired Then
+            Dim callback As New UpdateText(AddressOf UpdateUI)
+            Me.Invoke(callback, outLine)
         Else
-            MsgBox("合併完成")
-            Button3.Enabled = True
-            Button4.Enabled = False
-            TextBox1.Text = String.Empty
-            TextBox2.Text = String.Empty
-            nowState = State.None
+            TextBox3.AppendText(outLine & vbNewLine)
+
+            Dim index As Integer = GetNowFrame(outLine)
+            If Not ProgressBar1.Maximum = 0 AndAlso Not index = -1 Then
+                ProgressBar1.Value = index
+            End If
         End If
+    End Sub
+
+    Private Function GetNowFrame(ByVal outLine As String) As Integer
+        Dim result As Integer = -1
+        Dim index As Integer = outLine.IndexOf("fps=")
+
+        If Not index = -1 Then
+            result = Strings.Mid(outLine, 7, index - 7)
+        End If
+
+        Return result
+    End Function
+
+    Private Sub ffmpeg_Exited(sender As Object, e As EventArgs)
+        MsgBox("合併完成")
+        Button3.Enabled = True
+        Button4.Enabled = False
+        TextBox1.Text = String.Empty
+        TextBox2.Text = String.Empty
+        nowState = State.None
+        ProgressBar1.Maximum = 0
+    End Sub
+
+    Private Sub Form1_Closing(sender As Object, e As CancelEventArgs) Handles Me.Closing
+        nowState = State.Cancel
     End Sub
 End Class
