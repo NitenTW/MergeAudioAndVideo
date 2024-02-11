@@ -76,7 +76,7 @@ Public Class Form1
         tmpPath.VideoFilename = System.IO.Path.GetFileName(TextBox2.Text)
         tmpPath.AudioPath = System.IO.Path.GetDirectoryName(TextBox1.Text) & "\"
         tmpPath.AudioFilename = System.IO.Path.GetFileName(TextBox1.Text)
-        tmpPath.finishFileName = System.IO.Path.GetFileNameWithoutExtension(tmpPath.VideoFilename) & "_Merge.mp4"
+        tmpPath.finishFileName = GetNewFilename(System.IO.Path.GetFileNameWithoutExtension(tmpPath.VideoFilename) & "_Merge.mp4")
     End Sub
 
     ''' <summary>
@@ -114,12 +114,26 @@ Public Class Form1
             Return False
         End If
 
-        If My.Computer.FileSystem.FileExists(tmpPath.finishFileName) Then
-            MsgBox(tmpPath.finishFileName & " 已經存在，請刪除或重新命名該檔案")
-            Return False
-        End If
-
         Return True
+    End Function
+
+    ''' <summary>
+    ''' 取得新檔案名稱
+    ''' </summary>
+    ''' <param name="destinationName">要重新命名的檔案名稱 (完整路徑)</param>
+    Private Function GetNewFilename(ByVal destinationName As String) As String
+        Dim count As Integer = 0
+        Dim tmpDirectory As String = System.IO.Path.GetDirectoryName(destinationName)
+        Dim tmpMainFileName As String = System.IO.Path.GetFileNameWithoutExtension(destinationName)
+        Dim tmpExtension As String = System.IO.Path.GetExtension(destinationName)
+        Dim result As String = destinationName
+
+        Do While System.IO.File.Exists(result)
+            count += 1
+            result = tmpDirectory & "\" & tmpMainFileName & "(" & count & ")" & tmpExtension
+        Loop
+
+        Return result
     End Function
 
     Private Function GetFrameCount() As Integer
